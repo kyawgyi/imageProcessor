@@ -1,15 +1,24 @@
 <?php
 	include("Image_lib.php");
-
-	$config['source_image'] = 'test-image.jpg';
-	$config['width'] = '200';
-	$config['height'] = '400';	
-	$config['fill_extra_space'] = true;
-	$config['fill_color'] = array(255,255,255);
-
-	$imageProcessor->initialize($config);
+	//watermark
+	$image->setImage('test-image.jpg');		
+	$image->alignment('left','top')->position(0,200)->withImage('overlay.jpg')->watermark();
+	$image->save();
 	
-	//$imageProcessor->cropResize();
+	//crop resize
+	// $image->setImage('test-image.jpg');
+	// $image->verticalFlip();
+	// $image->fillExtraSpace("#FF0000")->cropResize(300,300);	
+	// $image->saveAs('test-medium.jpg');
+
+	//flip and resize
+	// $image->setImage('test-image.jpg');
+	// $image->horizontalFlip();
+	// $image->resize(500,500);
+	// $image->saveAs('test-large.jpg');
+
+
+	
 	
 	
 ?>

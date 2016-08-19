@@ -355,6 +355,10 @@ class Image_lib {
 
 	private $req_height;
 
+	private $config;
+
+	private $image_obj;
+
 	/**
 	 * Initialize Image Library
 	 *
@@ -380,9 +384,10 @@ class Image_lib {
 	 * @return	void
 	 */
 	public function clear()
-	{
+	{		
 		$props = array('thumb_marker', 'library_path', 'source_image', 'new_image', 'width', 'height', 'rotation_angle', 'x_axis', 'y_axis', 'wm_text', 'wm_overlay_path', 'wm_font_path', 'wm_shadow_color', 'source_folder', 'dest_folder', 'mime_type', 'orig_width', 'orig_height', 'image_type', 'size_str', 'full_src_path', 'full_dst_path');
-
+		
+		if(empty($this->image_obj))
 		foreach ($props as $val)
 		{
 			$this->$val = '';
@@ -393,7 +398,7 @@ class Image_lib {
 		$this->quality 				= 90;
 		$this->create_thumb 		= FALSE;
 		$this->thumb_marker 		= '_thumb';
-		$this->maintain_ratio 		= TRUE;
+		$this->maintain_ratio 		= FALSE;
 		$this->master_dim 			= 'auto';
 		$this->wm_type 				= 'text';
 		$this->wm_x_transp 			= 4;
@@ -412,6 +417,8 @@ class Image_lib {
 		$this->error_msg 			= array();
 		$this->wm_use_drop_shadow 	= FALSE;
 		$this->wm_use_truetype 		= FALSE;
+		$this->fill_extra_space     = FALSE;
+		$this->fill_color			= array();
 	}
 
 	// --------------------------------------------------------------------
@@ -506,13 +513,16 @@ class Image_lib {
 		$x = explode('/', $full_source_path);
 		$this->source_image = end($x);
 		$this->source_folder = str_replace($this->source_image, '', $full_source_path);
-
 		
 		// Set the Image Properties
-		if ( ! $this->get_image_properties($this->source_folder.$this->source_image))
+		if(empty($this->image_obj))
 		{
-			return FALSE;
+			if ( ! $this->get_image_properties($this->source_folder.$this->source_image))
+			{
+				return FALSE;
+			}
 		}
+		
 		
 		/*
 		 * Assign the "new" image name/path
@@ -522,40 +532,9 @@ class Image_lib {
 		 * it means we are altering the original. We'll
 		 * set the destination filename and path accordingly.
 		 */
-		if ($this->new_image === '')
-		{
-			$this->dest_image = $this->source_image;
-			$this->dest_folder = $this->source_folder;
-		}
-		elseif (strpos($this->new_image, '/') === FALSE)
-		{
-			$this->dest_folder = $this->source_folder;
-			$this->dest_image = $this->new_image;
-		}
-		else
-		{
-			if (strpos($this->new_image, '/') === FALSE && strpos($this->new_image, '\\') === FALSE)
-			{
-				$full_dest_path = str_replace('\\', '/', realpath($this->new_image));
-			}
-			else
-			{
-				$full_dest_path = $this->new_image;
-			}
+			$this->setDestinations();
 
-			// Is there a file name?
-			if ( ! preg_match('#\.(jpg|jpeg|gif|png)$#i', $full_dest_path))
-			{
-				$this->dest_folder = $full_dest_path.'/';
-				$this->dest_image = $this->source_image;
-			}
-			else
-			{
-				$x = explode('/', $full_dest_path);
-				$this->dest_image = end($x);
-				$this->dest_folder = str_replace($this->dest_image, '', $full_dest_path);
-			}
-		}
+
 		/* Compile the finalized filenames/paths
 		 *
 		 * We'll create two master strings containing the
@@ -564,18 +543,7 @@ class Image_lib {
 		 * We'll also split the destination image name
 		 * so we can insert the thumbnail marker if needed.
 		 */
-		if ($this->create_thumb === FALSE OR $this->thumb_marker === '')
-		{
-			$this->thumb_marker = '';
-		}
-
-		$xp = $this->explode_name($this->dest_image);
-
-		$filename = $xp['name'];
-		$file_ext = $xp['ext'];
-
-		$this->full_src_path = $this->source_folder.$this->source_image;
-		$this->full_dst_path = $this->dest_folder.$filename.$this->thumb_marker.$file_ext;
+		
 
 		/* Should we maintain image proportions?
 		 *
@@ -635,60 +603,233 @@ class Image_lib {
 			$this->wm_use_truetype = TRUE;
 		}
 
-		return TRUE;
+		return $this;
 	}
 
+	private function setDestinations()
+	{
+		if ($this->new_image === '')
+		{
+			$this->dest_image = $this->source_image;
+			$this->dest_folder = $this->source_folder;
+		}
+		elseif (strpos($this->new_image, '/') === FALSE)
+		{			
+			$this->dest_folder = $this->source_folder;
+			$this->dest_image = $this->new_image;
+		}
+		else
+		{
+
+			if (strpos($this->new_image, '/') === FALSE && strpos($this->new_image, '\\') === FALSE)
+			{
+				$full_dest_path = str_replace('\\', '/', realpath($this->new_image));
+			}
+			else
+			{
+				$full_dest_path = $this->new_image;
+			}
+
+			// Is there a file name?
+			if ( ! preg_match('#\.(jpg|jpeg|gif|png)$#i', $full_dest_path))
+			{
+				$this->dest_folder = $full_dest_path.'/';
+				$this->dest_image = $this->source_image;
+			}
+			else
+			{
+				$x = explode('/', $full_dest_path);
+				$this->dest_image = end($x);
+				$this->dest_folder = str_replace($this->dest_image, '', $full_dest_path);
+			}
+		}
+
+		if ($this->create_thumb === FALSE OR $this->thumb_marker === '')
+		{
+			$this->thumb_marker = '';
+		}
+
+		$xp = $this->explode_name($this->dest_image);
+
+		$filename = $xp['name'];
+		$file_ext = $xp['ext'];
+
+		$this->full_src_path = $this->source_folder.$this->source_image;
+		$this->full_dst_path = $this->dest_folder.$filename.$this->thumb_marker.$file_ext;
+	}
+
+
+	public function setImageLibrary($name,$path)
+	{
+		$this->config['image_library'] = $name;
+		$this->config['library_path']  = $path;
+	}
+
+	private function resetConfig()
+	{
+		
+		if(empty($this->config['new_image']))
+		{
+			$source = $this->config['source_image'];
+			$this->config = [];
+			$this->config['source_image']= $source;
+		}else
+		{
+			$this->config = [];
+		}
+	}
+
+	
 	// --------------------------------------------------------------------
 
-	public function cropResize()
-	{		
+	public function cropResize($width,$height)
+	{	
+		if(isset($this->config['maintain_ratio']) && isset($this->config['maintain_ratio']))
+		echo "<p class='warning'>maintainRatio method do not have effect on cropResize process.</p>";
+	
+		if(empty($this->config['source_image']) || !file_exists($this->config['source_image']))
+		throw new Exception('Source Image is not set or not found.use setImage()');
+		if(!empty($width))
+		$this->config['width'] = $width;
+		if(!empty($height))
+		$this->config['height'] = $height;
+
+		$this->maintain_ratio = FALSE;
+		$this->config['maintain_ratio']=FALSE;
+
+		$this->clear();
+		$this->initialize($this->config);
+
+		
+
 		$orgImage = $this->get_image_properties($this->source_folder.$this->source_image,true);
 		$org_width = $orgImage['width'];
 		$org_height = $orgImage['height'];
 		$req_width = $this->width;
 		$req_height = $this->height;
-		
-		if($req_width > $req_height)
+
+		$x_axis = 0;
+		$y_axis = 0;
+
+		$OR = $org_width/$org_height;
+		$RR = $req_width/$req_height;
+		if($OR != $RR)
 		{
-			//base on width			
-			$virtual_height = floor($org_width / $req_width * $req_height);
-			$virtual_width = floor($org_width);
-			$this->y_axis = ($org_height-$virtual_height)/2;
-		}
-		elseif($req_width < $req_height)
-		{
-			// var_dump($org_height);
-			// var_dump($req_height);
-			// var_dump($req_width);
-			//base on height					
-			$virtual_height = floor($org_height);
-			$virtual_width = floor($org_height / $req_height * $req_width);
-			$this->x_axis = ($org_width-$virtual_width)/2;
-		}else
-		{
-			if($org_height > $org_width)
-			{
-				$virtual_width = $org_width;
-				$virtual_height = $org_width;
-			}else
-			{
-				$virtual_width = $org_height;
-				$virtual_height = $org_height;
+			if($OR < $RR)
+			{				
+				//base on width			
+				$virtual_height = floor($org_width / $req_width * $req_height);
+				$virtual_width = floor($org_width);
+				$y_axis = ($org_height-$virtual_height)/2;
 			}
+			elseif($OR > $RR)
+			{
+				//base on height					
+				$virtual_height = floor($org_height);
+				$virtual_width = floor($org_height / $req_height * $req_width);
+				$x_axis = ($org_width-$virtual_width)/2;
+			}	
+
+			$fill_extra_space = $this->fill_extra_space;
+			$fill_color = $this->fill_color;
+
+			$this->crop($virtual_width,$virtual_height,$x_axis,$y_axis);
 		}
-		$this->width = $virtual_width;
-		$this->height = $virtual_height;
-			
-		$this->crop();
-		$this->width = $req_width;
-		$this->height = $req_height;
-		$this->resize();
-		// $this->width = $req_width;
-		// $this->height = 400;
-		// $this->resize();
+		//if save as new image, crop will creaet a new image 
+		//$this->config['source_image'] = $source_image;
+		$this->config['fill_extra_space'] = $fill_extra_space;
+		$this->config['fill_color'] = $fill_color;
+		
+
+		$this->resize($width,$height);
+
+		
+		
+		$this->resetConfig();
 	}
 
 	// --------------------------------------------------------------------
+
+	public function setImage($image)
+	{
+		$this->config['source_image'] = $image;
+	}
+
+	public function maintainRatio()
+	{
+		$this->config['maintain_ratio'] = true;
+		return $this;
+	}
+
+	public function fillExtraSpace($hexa_color)
+	{
+		if(strlen($hexa_color) != 7)
+		throw new Exception('Color value pass to fillExtraSpace function format is not valid.eg:#FFFFFF');
+		$hexa_color = str_replace("#","", $hexa_color);
+		$red   = hexdec($hexa_color[0]. $hexa_color[1]);
+		$green = hexdec($hexa_color[2]. $hexa_color[3]);
+		$blue  = hexdec($hexa_color[4]. $hexa_color[5]);
+		$this->config['fill_color'] = array($red,$green,$blue);
+		$this->config['fill_extra_space'] = true;
+		return $this;
+	}
+
+	public function baseOn($para="auto")
+	{		
+		$this->config['master_dim']=$para;
+		return $this;
+	}
+
+	public function blackNwhite()
+	{
+		$this->clear();
+		$this->initialize($this->config);
+
+		if(empty($this->image_obj))
+		$this->image_obj = $this->image_create_gd();
+
+		if(!($this->image_obj && imagefilter($this->image_obj, IMG_FILTER_GRAYSCALE)))		
+		{		    
+		    throw new Exception('Conversion to grayscale failed.');
+		}
+
+		$this->resetConfig();
+	}
+
+
+	public function saveAs($newImage)
+	{		
+		$this->new_image = $newImage;
+		$this->setDestinations();
+		if(!$this->image_save_gd($this->image_obj))
+		{
+			throw new Exception('image saving process fail');
+		}
+		imagedestroy($this->image_obj);
+		$this->clear();
+		$this->config=[];
+		$this->image_obj = null;
+
+	}
+
+	public function save($newName="")
+	{
+		if(!$this->image_save_gd($this->image_obj))
+		{
+			throw new Exception('image saving process fail');
+		}
+		imagedestroy($this->image_obj);
+
+		chmod($this->full_dst_path, $this->file_permissions);
+
+		if($newName)
+		rename($this->source_folder.$this->source_image,$this->source_folder.$newName);
+
+		$this->clear();
+		$this->config=[];		
+		$this->image_obj = null;
+	}
+
 
 	/**
 	 * Image Resize
@@ -698,10 +839,28 @@ class Image_lib {
 	 *
 	 * @return	bool
 	 */
-	public function resize()
-	{
+	public function resize($width,$height)
+	{	
+		if(isset($this->config['fill_extra_space']) && $this->config['fill_extra_space'] && isset($this->config['master_dim']))
+		echo "<p class='warning'> fillExtraSpace method and baseOn method should not be used together</p>";
+		
+		if(empty($this->config['source_image']) || !file_exists($this->config['source_image']))
+		throw new Exception('Source Image is not set or not found.use setImage()');
+		if(!empty($width))
+		$this->config['width'] = $width;
+		if(!empty($height))
+		$this->config['height'] = $height;
+
+		$this->clear();
+		$this->initialize($this->config);
+
 		$protocol = ($this->image_library === 'gd2') ? 'image_process_gd' : 'image_process_'.$this->image_library;
-		return $this->$protocol('resize');
+		
+		if(!$this->$protocol('resize'))
+		throw new Exception('Resizing Fail');
+
+		$this->resetConfig();
+		
 	}
 
 	// --------------------------------------------------------------------
@@ -714,13 +873,44 @@ class Image_lib {
 	 *
 	 * @return	bool
 	 */
-	public function crop()
-	{
+	public function crop($width,$height,$x_start=0,$y_start=0)
+	{	
+		
+		if(empty($this->config['source_image']) || !file_exists($this->config['source_image']))
+		throw new Exception('Source Image is not set or not found.use setImage()');
+		if(!empty($width))
+		$this->config['width'] = $width;
+		if(!empty($height))
+		$this->config['height'] = $height;
+
+		$this->config['x_axis'] = $x_start;
+		$this->config['y_axis'] = $y_start;
+
+		$this->clear();
+		$this->initialize($this->config);
+
 		$protocol = ($this->image_library === 'gd2') ? 'image_process_gd' : 'image_process_'.$this->image_library;
-		return $this->$protocol('crop');
+		
+		if(!$this->$protocol('crop'))
+		throw new Exception('Cropping Fail');
+
+		
+
+		$this->resetConfig();
 	}
 
 	// --------------------------------------------------------------------
+
+	public function verticalFlip()
+	{
+		return $this->rotate('vrt');
+	}
+
+	public function horizontalFlip()
+	{
+		return $this->rotate('hor');
+	}
+
 
 	/**
 	 * Image Rotate
@@ -730,8 +920,16 @@ class Image_lib {
 	 *
 	 * @return	bool
 	 */
-	public function rotate()
+	public function rotate($degree)
 	{
+		
+		if(empty($this->config['source_image']) || !file_exists($this->config['source_image']))
+		throw new Exception('Source Image is not set or not found.use setImage()');
+		
+		$this->config['rotation_angle'] = $degree;		
+		$this->clear();
+		$this->initialize($this->config);
+
 		// Allowed rotation values
 		$degs = array(90, 180, 270, 'vrt', 'hor');
 
@@ -760,9 +958,16 @@ class Image_lib {
 			return $this->$protocol('rotate');
 		}
 
-		return ($this->rotation_angle === 'hor' OR $this->rotation_angle === 'vrt')
+		$status = ($this->rotation_angle === 'hor' OR $this->rotation_angle === 'vrt')
 			? $this->image_mirror_gd()
 			: $this->image_rotate_gd();
+
+		if(!$status)
+		throw new Exception('Rotating Image Fail');
+
+		
+
+		$this->resetConfig();
 	}
 
 	// --------------------------------------------------------------------
@@ -778,9 +983,6 @@ class Image_lib {
 	public function image_process_gd($action = 'resize')
 	{
 		$v2_override = FALSE;
-
-
-
 		// If the target width/height match the source, AND if the new file name is not equal to the old file name
 		// we'll simply make a copy of the original with the new name... assuming dynamic rendering is off.
 		if ($this->dynamic_output === FALSE && $this->orig_width === $this->width && $this->orig_height === $this->height)
@@ -796,8 +998,6 @@ class Image_lib {
 		// Let's set up our values based on the action
 		if ($action === 'crop')
 		{
-			var_dump($this->width);
-		    var_dump($this->height);	
 			// Reassign the source width/height if cropping			
 			$this->orig_width  = $this->width;
 			$this->orig_height = $this->height;
@@ -817,12 +1017,14 @@ class Image_lib {
 		}
 
 		// Create the image handle
-		if ( ! ($src_img = $this->image_create_gd()))
-		{
-			return FALSE;
-		}
-
-
+		if(empty($this->image_obj))
+		{			
+			if ( ! ($src_img = $this->image_create_gd()))
+			{
+				return FALSE;
+			}
+		}else
+		$src_img = $this->image_obj;
 		/* Create the image
 		 *
 		 * Old conditional which users report cause problems with shared GD libs who report themselves as "2.0 or greater"
@@ -866,8 +1068,12 @@ class Image_lib {
 			imagesavealpha($dst_img, TRUE);
 		}
 
-		$color = imagecolorallocate($dst_img, $this->fill_color[0], $this->fill_color[1], $this->fill_color[2]);
-		imagefill($dst_img, 0, 0, $color);
+		if($this->fill_extra_space)
+		{
+			$color = imagecolorallocate($dst_img, $this->fill_color[0], $this->fill_color[1], $this->fill_color[2]);
+			imagefill($dst_img, 0, 0, $color);
+		}
+		
 
 		$copy($dst_img, $src_img, $x_offset, $y_offset, $this->x_axis, $this->y_axis, $this->width, $this->height, $this->orig_width, $this->orig_height);
 
@@ -876,16 +1082,16 @@ class Image_lib {
 		{
 			$this->image_display_gd($dst_img);
 		}
-		elseif ( ! $this->image_save_gd($dst_img)) // Or save it
-		{
-			return FALSE;
-		}
-
+		// elseif ( ! $this->image_save_gd($dst_img)) // Or save it
+		// {
+		// 	return FALSE;
+		// }
+		
+		$this->image_obj = $dst_img;
+		$this->orig_width = $this->width;
+		$this->orig_height = $this->height;
 		// Kill the file handles
-		imagedestroy($dst_img);
 		imagedestroy($src_img);
-
-		chmod($this->full_dst_path, $this->file_permissions);
 
 		return TRUE;
 	}
@@ -1057,10 +1263,14 @@ class Image_lib {
 	public function image_rotate_gd()
 	{
 		// Create the image handle
-		if ( ! ($src_img = $this->image_create_gd()))
+		if(empty($this->image_obj))
 		{
-			return FALSE;
-		}
+			if ( ! ($src_img = $this->image_create_gd()))
+			{
+				return FALSE;
+			}
+		}else
+		$src_img = $this->image_obj;	
 
 		// Set the background color
 		// This won't work with transparent PNG files so we are
@@ -1077,14 +1287,12 @@ class Image_lib {
 		{
 			$this->image_display_gd($dst_img);
 		}
-		elseif ( ! $this->image_save_gd($dst_img)) // ... or save it
-		{
-			return FALSE;
-		}
+		// elseif ( ! $this->image_save_gd($dst_img)) // ... or save it
+		// {
+		// 	return FALSE;
+		// }
 
-		// Kill the file handles
-		imagedestroy($dst_img);
-		imagedestroy($src_img);
+		$this->image_obj= $dst_img;
 
 		chmod($this->full_dst_path, $this->file_permissions);
 
@@ -1102,10 +1310,14 @@ class Image_lib {
 	 */
 	public function image_mirror_gd()
 	{
-		if ( ! $src_img = $this->image_create_gd())
+		if(empty($this->image_obj))
 		{
-			return FALSE;
-		}
+			if ( ! ($src_img = $this->image_create_gd()))
+			{
+				return FALSE;
+			}
+		}else
+		$src_img = $this->image_obj;	
 
 		$width  = $this->orig_width;
 		$height = $this->orig_height;
@@ -1156,13 +1368,12 @@ class Image_lib {
 		{
 			$this->image_display_gd($src_img);
 		}
-		elseif ( ! $this->image_save_gd($src_img)) // ... or save it
-		{
-			return FALSE;
-		}
+		// elseif ( ! $this->image_save_gd($src_img)) // ... or save it
+		// {
+		// 	return FALSE;
+		// }
 
-		// Kill the file handles
-		imagedestroy($src_img);
+		$this->image_obj= $src_img;
 
 		chmod($this->full_dst_path, $this->file_permissions);
 
@@ -1179,8 +1390,68 @@ class Image_lib {
 	 *
 	 * @return	bool
 	 */
-	public function watermark()
+	
+	public function withText($text,$font_size,$color)
+	{			
+		$this->config['wm_type'] = "text";
+		$this->config['wm_font_size']=$font_size;
+		$this->config['wm_text']=$text;
+		$this->config['wm_font_color']=$color;
+		return $this;
+	}
+
+	public function fontImport($path)
 	{
+		$this->config['wm_font_path'] = $path;
+		return $this;
+	}
+
+	public function textShadow($color,$distance)
+	{
+		$this->config['wm_shadow_distance']= $distance;
+		$this->config['wm_shadow_color'] = $color;
+		return $this;
+	}
+
+	public function withImage($overlay_image,$opactiy=50)
+	{
+		$this->config['wm_type'] = "overlay";
+		$this->config['wm_overlay_path'] = $overlay_image;
+		$this->config['wm_opacity'] = $opactiy;
+		return $this;
+	}
+
+	public function alignment($horizontal,$vertical)
+	{
+		if($vertical=="center") $vertical = "middle";
+		$this->config['wm_vrt_alignment'] = $vertical;
+		$this->config['wm_hor_alignment'] = $horizontal;
+		
+		return $this;
+	}
+
+	public function position($hor_offset,$ver_offset=NULL)
+	{
+		$this->config['wm_vrt_offset'] = $ver_offset;
+		$this->config['wm_hor_offset'] = $hor_offset;
+		if($ver_offset == NULL)
+		$this->config['wm_padding'] = $hor_offset;
+		return $this;
+	}
+
+	public function watermark($quality=90)
+	{			
+		
+		if(isset($this->config['wm_font_size']) && $this->config['wm_font_size'] > 5 && !isset($this->config['wm_font_path']))
+		echo "<p>If you don't use fontImport method,True Type Font will be used. it can support font size (1-5)</p>";
+
+		$this->config['quality'] = $quality;
+		if(empty($this->config['source_image']) || !file_exists($this->config['source_image']))
+		throw new Exception('Source Image is not set or not found.use setImage()');
+		$this->clear();
+		$this->initialize($this->config);
+		if(!file_exists($this->wm_overlay_path))
+		throw new Exception('watermark image path is invalid');
 		return ($this->wm_type === 'overlay') ? $this->overlay_watermark() : $this->text_watermark();
 	}
 
@@ -1201,7 +1472,6 @@ class Image_lib {
 
 		// Fetch source image properties
 		$this->get_image_properties();
-
 		// Fetch watermark image properties
 		$props		= $this->get_image_properties($this->wm_overlay_path, TRUE);
 		$wm_img_type	= $props['image_type'];
@@ -1210,7 +1480,16 @@ class Image_lib {
 
 		// Create two image resources
 		$wm_img  = $this->image_create_gd($this->wm_overlay_path, $wm_img_type);
-		$src_img = $this->image_create_gd($this->full_src_path);
+		//$src_img = $this->image_create_gd($this->full_src_path);
+
+		if(empty($this->image_obj))
+		{
+			if ( ! ($src_img = $this->image_create_gd($this->full_src_path)))
+			{
+				return FALSE;
+			}
+		}else
+		$src_img = $this->image_obj;	
 
 		// Reverse the offset if necessary
 		// When the image is positioned at the bottom
@@ -1287,12 +1566,11 @@ class Image_lib {
 		{
 			$this->image_display_gd($src_img);
 		}
-		elseif ( ! $this->image_save_gd($src_img)) // ... or save it
-		{
-			return FALSE;
-		}
-
-		imagedestroy($src_img);
+		// elseif ( ! $this->image_save_gd($src_img)) // ... or save it
+		// {
+		// 	return FALSE;
+		// }
+		$this->image_obj= $src_img;
 		imagedestroy($wm_img);
 
 		return TRUE;
@@ -1307,10 +1585,14 @@ class Image_lib {
 	 */
 	public function text_watermark()
 	{
-		if ( ! ($src_img = $this->image_create_gd()))
+		if(empty($this->image_obj))
 		{
-			return FALSE;
-		}
+			if ( ! ($src_img = $this->image_create_gd()))
+			{
+				return FALSE;
+			}
+		}else
+		$src_img = $this->image_obj;	
 
 		if ($this->wm_use_truetype === TRUE && ! file_exists($this->wm_font_path))
 		{
@@ -1458,12 +1740,11 @@ class Image_lib {
 		{
 			$this->image_display_gd($src_img);
 		}
-		else
-		{
-			$this->image_save_gd($src_img);
-		}
-
-		imagedestroy($src_img);
+		// else
+		// {
+		// 	$this->image_save_gd($src_img);
+		// }
+		$this->image_obj= $src_img;
 
 		return TRUE;
 	}
@@ -1482,6 +1763,7 @@ class Image_lib {
 	 */
 	public function image_create_gd($path = '', $image_type = '')
 	{
+
 		if ($path === '')
 		{
 			$path = $this->full_src_path;
@@ -1491,7 +1773,6 @@ class Image_lib {
 		{
 			$image_type = $this->image_type;
 		}
-
 		switch ($image_type)
 		{
 			case 1:
@@ -1537,6 +1818,7 @@ class Image_lib {
 	 */
 	public function image_save_gd($resource)
 	{
+		
 		switch ($this->image_type)
 		{
 			case 1:
@@ -1845,7 +2127,11 @@ class Image_lib {
 	 */
 	private function set_error($msg)
 	{
-		echo "<p>Error:$msg</p>";
+		if(is_array($msg))
+		{
+			throw new Exception(implode(" ",$msg));
+		}else
+		throw new Exception($msg);
 	}
 
 	// --------------------------------------------------------------------
@@ -1854,4 +2140,4 @@ class Image_lib {
 
 }
 
-$imageProcessor = new Image_lib();
+$image = new Image_lib();
