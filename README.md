@@ -1,5 +1,5 @@
 # imageProcessor
-php based image processing class for use after upload from file.It is based on class of codeigniter framework libaray.Some additional feature are added and change the coding style.
+php based image processing class to use after uploading image file.It is based on class of codeigniter framework libaray.Some additional feature are added and change the coding style.
 
 Type of process for image.
 * resize
@@ -14,7 +14,7 @@ Type of process for image.
 image_lib class should be loaded before using these method.
 eg: include("Image_lib.php");
 This file has a line "$image = new Image_lib();".
-It will create a $image instant object.If you don't want , you can remove it.
+#####It will create a $image instant object.If you don't want , you can remove it.
 ---
 ##initial step
 Firstly you need to set image to edit on $image object.
